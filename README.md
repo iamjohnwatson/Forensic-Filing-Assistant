@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Forensic Filing Assistant
 
-## Getting Started
+A sophisticated, minimalist financial intelligence tool designed for investigating SEC filings and tracking institutional "whale" activity.
 
-First, run the development server:
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Next.js](https://img.shields.io/badge/built%20with-Next.js-black)
+![Tailwind](https://img.shields.io/badge/styled%20with-Tailwind-38bdf8)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🌟 Key Features
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 1. Advanced Filing Downloader
+Search and retrieve filings for any US public company or private fund.
+*   **Comprehensive Search:** Supports standard Tickers (AAPL, NVDA) and **names** (e.g., "Public Investment Fund", "Bridgewater") via a robust 37MB fallback index.
+*   **Expanded Filing Support:** 10-K, 10-Q, 8-K, 20-F, 6-K, S-1, S-1/A, DEF 14A, PRE 14A, NT 10-K, NT 10-Q.
+*   **Intelligent Filtering:** Smart logic ensures searching for "10-K" doesn't accidentally return "NT 10-K" (late notices).
+*   **Reader Mode:** Click the "Read" button to view any filing in a clean, distraction-free, serif-font layout optimized for reading and printing to PDF.
+*   **Enhanced Batch Download:** "Download All" zips up to 20 filings as **Enhanced HTML** files that render perfectly offline with injected CSS and absolute image paths.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 2. Whale Tracker 🐳
+Analyze institutional 13-F filings to see what the "smart money" is doing.
+*   **Holdings Analysis:** Automatically parses 13F-HR XML data to display current holdings.
+*   **Change Detection:** Compares the current quarter vs. previous quarter to highlight **Top Buys** and **Top Sells**.
+*   **Visual Design:** Minimalist, editorial design with a dark mode that feels professional and data-rich.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3. Sophisticated UI/UX
+*   **Design System:** Built with a "minimalist/editorial" aesthetic.
+*   **Dark Mode:** Fully integrated toggle (☀️/🌙) with smooth transitions.
+*   **Responsive:** Works seamlessly on desktop and tablet.
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## 🛠️ Technical Stack
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+*   **Framework:** Next.js 15 (App Router)
+*   **Styling:** Tailwind CSS v4
+*   **Backend:** Next.js API Routes (Server-side proxying to bypass SEC CORS)
+*   **Data Source:** SEC EDGAR API (`data.sec.gov`) & Full Index (`cik-lookup-data.txt`)
+*   **Utilities:** `cheerio` (HTML parsing), `xml2js` (13F parsing), `jszip` (Batch downloading)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 🚀 Getting Started
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Prerequisites
+*   Node.js 18+
+*   npm or yarn
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Installation
+
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/iamjohnwatson/Forensic-Filing-Assistant.git
+    cd Forensic-Filing-Assistant
+    ```
+
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
+
+3.  Run the development server:
+    ```bash
+    npm run dev
+    ```
+
+4.  Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+---
+
+## ⚠️ Deployment Note
+
+This application relies on **Server-Side API Routes** to proxy requests to the SEC (to handle User-Agent headers and CORS).
+
+*   **Do NOT deploy to GitHub Pages** (Static hosting will break the API).
+*   **Recommended:** Deploy to **Vercel** or any Node.js hosting.
+
+### Deploying to Vercel
+1.  Push your code to GitHub.
+2.  Import the repo on [Vercel.com](https://vercel.com).
+3.  Deploy (Zero configuration required).
+
+---
+
+## 📄 License
+
+MIT License. Free to use for personal and forensic research.
+
+**Disclaimer:** This tool is for informational purposes only. Data is sourced from the SEC but not guaranteed to be real-time. Always verify with official EDGAR filings.
