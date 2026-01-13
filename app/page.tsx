@@ -1,0 +1,270 @@
+"use client";
+
+import { useState } from 'react';
+import { Search, FileText, Download, Calendar, Filter, Loader2, Sparkles, FolderDown, Activity } from 'lucide-react';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
+import { WhaleTracker } from './components/WhaleTracker';
+
+interface FilingResult {
+  accessionNumber: string;
+  filingDate: string;
+  form: string;
+  size: number;
+  primaryDocument: string;
+  description: string;
+  downloadUrl: string; // Direct SEC URL
+}
+
+export default function Home() {
+  // I'm keeping track of which tab is active here.
+  const [activeTab, setActiveTab] = useState<'downloader' | 'whale'>('downloader');
+
+  // These are the state variables I need for the global filing downloader.
+  const [ticker, setTicker] = useState("");
+  const [startDate, setStartDate] = useState("2023-01-01");
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [filingType, setFilingType] = useState('ALL');
+
+  const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [results, setResults] = useState<FilingResult[] | null>(null);
+  const [error, setError] = useState("");
+
+  // Tracking the theme state (light/dark) so I can style components accordingly.
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  // This handles switching the CSS class on the document root when I toggle the button.
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    if (newTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!ticker) return;
+    setLoading(true);
+    setError("");
+    setResults(null);
+
+    try {
+      const res = await fetch('/api/search-filings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticker, startDate, endDate, filingType }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to fetch filings");
+      setResults(data.results);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "An error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadFile = (url: string, filename: string) => {
+    // I'm forcing the download through my proxy to avoid CORS issues with the SEC.
+    window.location.href = `/api/download-proxy?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
+  };
+
+  const handleDownloadAll = async () => {
+    if (!results || results.length === 0) return;
+    setDownloading(true);
+
+    try {
+      const zip = new JSZip();
+      const filesToDownload = results.slice(0, 20);
+      let processed = 0;
+
+      for (const item of filesToDownload) {
+        try {
+          const response = await fetch(`/api/download-proxy?url=${encodeURIComponent(item.downloadUrl)}&filename=${item.primaryDocument}`);
+          if (!response.ok) continue;
+          const blob = await response.blob();
+          const ext = item.primaryDocument.split('.').pop() || 'htm';
+          const filename = `${item.filingDate}_${item.form}_${item.accessionNumber}.${ext}`;
+          zip.file(filename, blob);
+          processed++;
+        } catch (e) {
+          console.error("Failed to zip file", item.accessionNumber);
+        }
+      }
+
+      if (processed > 0) {
+        const content = await zip.generateAsync({ type: "blob" });
+        saveAs(content, `${ticker}_SEC_Filings.zip`);
+      } else {
+        alert("Failed to download any files for zipping.");
+      }
+
+    } catch (e) {
+      console.error("Zip Error", e);
+      alert("Error creating zip file.");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div className={`min-h-screen transition-colors duration-300 ${theme === 'dark' ? 'bg-zinc-950 text-zinc-100' : 'bg-gray-50 text-gray-900'} font-sans selection:bg-gray-200 selection:text-gray-900 dark:selection:bg-zinc-800 dark:selection:text-white`}>
+
+      {/* Minimal Header */}
+      <header className={`sticky top-0 z-50 border-b transition-colors duration-300 ${theme === 'dark' ? 'border-zinc-800 bg-zinc-950/80' : 'border-gray-200 bg-white/80'} backdrop-blur-md`}>
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`p-1.5 rounded-md ${theme === 'dark' ? 'bg-zinc-800 text-white' : 'bg-gray-900 text-white'}`}>
+              <Activity className="h-4 w-4" />
+            </div>
+            <div className="flex flex-col">
+              <h1 className="text-sm font-bold tracking-tight uppercase">SEC Filings Assistant</h1>
+              <span className="text-[10px] text-gray-500 font-medium tracking-wide">by Akash Sriram</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className={`flex p-1 rounded-lg border ${theme === 'dark' ? 'border-zinc-800 bg-zinc-900' : 'border-gray-200 bg-gray-100'}`}>
+              <button
+                onClick={() => setActiveTab('downloader')}
+                className={`px-4 py-1.5 rounded-md text-xs font-medium transition-all ${activeTab === 'downloader' ? (theme === 'dark' ? 'bg-zinc-800 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm') : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-300'}`}
+              >
+                Downloader
+              </button>
+              <button
+                onClick={() => setActiveTab('whale')}
+                className={`px-4 py-1.5 rounded-md text-xs font-medium transition-all ${activeTab === 'whale' ? (theme === 'dark' ? 'bg-zinc-800 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm') : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-300'}`}
+              >
+                Whale Tracker
+              </button>
+            </div>
+
+            <button
+              onClick={toggleTheme}
+              className={`p-2 rounded-full border transition-all ${theme === 'dark' ? 'border-zinc-800 hover:bg-zinc-900 text-zinc-400' : 'border-gray-200 hover:bg-gray-100 text-gray-500'}`}
+            >
+              {theme === 'light' ? '🌙' : '☀️'}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-6xl mx-auto px-6 py-12">
+        {activeTab === 'whale' ? (
+          <WhaleTracker theme={theme} />
+        ) : (
+          <div className="max-w-4xl mx-auto space-y-12">
+            {/* Search Section */}
+            <div className={`p-8 rounded-2xl border transition-all duration-300 ${theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800 shadow-2xl' : 'bg-white border-gray-200 shadow-sm'}`}>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+                <div className="col-span-1">
+                  <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">Ticker</label>
+                  <input
+                    type="text"
+                    placeholder="NVDA"
+                    className={`w-full px-4 py-3 rounded-lg border transition-all outline-none font-mono text-sm ${theme === 'dark' ? 'bg-black/20 border-zinc-800 focus:border-white text-white' : 'bg-gray-50 border-gray-200 focus:border-black text-gray-900'}`}
+                    value={ticker}
+                    onChange={(e) => setTicker(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">Start Date</label>
+                  <input
+                    type="date"
+                    className={`w-full px-4 py-3 rounded-lg border transition-all outline-none text-sm ${theme === 'dark' ? 'bg-black/20 border-zinc-800 focus:border-white text-white' : 'bg-gray-50 border-gray-200 focus:border-black text-gray-900'}`}
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">End Date</label>
+                  <input
+                    type="date"
+                    className={`w-full px-4 py-3 rounded-lg border transition-all outline-none text-sm ${theme === 'dark' ? 'bg-black/20 border-zinc-800 focus:border-white text-white' : 'bg-gray-50 border-gray-200 focus:border-black text-gray-900'}`}
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">Type</label>
+                  <select
+                    className={`w-full px-4 py-3 rounded-lg border transition-all outline-none text-sm appearance-none ${theme === 'dark' ? 'bg-black/20 border-zinc-800 focus:border-white text-white' : 'bg-gray-50 border-gray-200 focus:border-black text-gray-900'}`}
+                    value={filingType}
+                    onChange={(e) => setFilingType(e.target.value)}
+                  >
+                    <option value="ALL">All Filings</option>
+                    <option value="10-K">10-K (Annual)</option>
+                    <option value="10-Q">10-Q (Quarterly)</option>
+                    <option value="8-K">8-K (Current)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="mt-8 flex justify-end">
+                <button
+                  onClick={handleSearch}
+                  disabled={loading}
+                  className={`px-8 py-3 rounded-lg text-sm font-medium transition-all ${theme === 'dark' ? 'bg-white text-black hover:bg-gray-200' : 'bg-gray-900 text-white hover:bg-black'}`}
+                >
+                  {loading ? "Searching..." : "Search Filings"}
+                </button>
+              </div>
+            </div>
+
+            {/* Results Table */}
+            {results && (
+              <div className={`rounded-xl border overflow-hidden ${theme === 'dark' ? 'border-zinc-800 bg-zinc-900/30' : 'border-gray-200 bg-white'}`}>
+                <div className={`px-6 py-4 border-b flex justify-between items-center ${theme === 'dark' ? 'border-zinc-800 bg-zinc-900/50' : 'border-gray-100 bg-gray-50/50'}`}>
+                  <span className={`text-xs font-medium uppercase tracking-wide ${theme === 'dark' ? 'text-zinc-500' : 'text-gray-500'}`}>
+                    Found <span className={theme === 'dark' ? 'text-zinc-300' : 'text-gray-900'}>{results.length}</span> filings
+                  </span>
+                  {results.length > 0 && (
+                    <button
+                      onClick={handleDownloadAll}
+                      disabled={downloading}
+                      className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-md transition-all ${theme === 'dark' ? 'bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700' : 'bg-white border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300 shadow-sm'}`}
+                    >
+                      {downloading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FolderDown className="h-3 w-3" />}
+                      {downloading ? "Zipping..." : "Download All"}
+                    </button>
+                  )}
+                </div>
+                <table className="w-full text-sm text-left">
+                  <thead className={`${theme === 'dark' ? 'bg-zinc-900 text-zinc-500' : 'bg-gray-50 text-gray-500'} text-xs uppercase font-medium`}>
+                    <tr>
+                      <th className="px-6 py-4">Date</th>
+                      <th className="px-6 py-4">Type</th>
+                      <th className="px-6 py-4">Description</th>
+                      <th className="px-6 py-4 text-right">Size</th>
+                      <th className="px-6 py-4 text-right">Download</th>
+                    </tr>
+                  </thead>
+                  <tbody className={`divide-y ${theme === 'dark' ? 'divide-zinc-800 text-zinc-300' : 'divide-gray-100 text-gray-700'}`}>
+                    {results.map((item, idx) => (
+                      <tr key={idx} className={`transition-colors ${theme === 'dark' ? 'hover:bg-zinc-800/50' : 'hover:bg-gray-50'}`}>
+                        <td className="px-6 py-4 font-mono text-xs opacity-70">{item.filingDate}</td>
+                        <td className="px-6 py-4"><span className="font-medium">{item.form}</span></td>
+                        <td className="px-6 py-4 truncate max-w-xs opacity-80">{item.description || item.primaryDocument}</td>
+                        <td className="px-6 py-4 text-right font-mono text-xs opacity-60">{(item.size / 1024).toFixed(0)} KB</td>
+                        <td className="px-6 py-4 text-right">
+                          <button onClick={() => downloadFile(item.downloadUrl, item.primaryDocument)} className="hover:underline opacity-60 hover:opacity-100">
+                            Download
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
