@@ -80,10 +80,11 @@ export async function fetchCIK(query: string): Promise<string | null> {
             const data = await response.json();
             const queryUpper = query.toUpperCase();
             const queryLower = query.toLowerCase();
+            const queryNormalized = queryUpper.replace(/\./g, '-'); // Handle BRK.A -> BRK-A
             const entries = Object.values(data) as CompanyTicker[];
 
-            // A. Exact Ticker Match
-            let entry = entries.find((item) => item.ticker === queryUpper);
+            // A. Exact Ticker Match (or Normalized)
+            let entry = entries.find((item) => item.ticker === queryUpper || item.ticker === queryNormalized);
 
             // B. Exact Title Match (Case-insensitive)
             if (!entry) {

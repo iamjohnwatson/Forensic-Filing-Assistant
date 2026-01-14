@@ -92,7 +92,24 @@ export async function POST(req: NextRequest) {
                                 console.log(`[WhaleTracker] Parsed Structure for ${label}:`, JSON.stringify(parsed, null, 2).substring(0, 500));
                             }
                         } else {
-                            console.warn(`[WhaleTracker] Could not find Information Table file in index for ${label}`);
+                            // FALLBACK: Try to find ANY xml file that isn't the primary document.
+                            // Berkshire Hathaway (and others) sometimes have random numeric names like '46994.xml'
+                            console.log(`[WhaleTracker] Standard search failed. Trying fallback XML search for ${label}...`);
+                            const fallbackFile = items.find((item: any) =>
+                                item.name.includes('.xml') && item.name !== primaryDocument && item.name !== 'primary_doc.xml'
+                            );
+
+                            if (fallbackFile) {
+                                console.log(`[WhaleTracker] Found Fallback XML file for ${label}: ${fallbackFile.name}`);
+                                targetUrl = `https://www.sec.gov/Archives/edgar/data/${parseInt(cik)}/${accessionNoDash}/${fallbackFile.name}`;
+                                content = await fetchFilingContent(targetUrl);
+                                if (content) {
+                                    parsed = await parse13F(content);
+                                    console.log(`[WhaleTracker] Parsed Fallback XML for ${label}`);
+                                }
+                            } else {
+                                console.warn(`[WhaleTracker] Could not find Information Table file in index for ${label}`);
+                            }
                         }
                     } else {
                         console.warn(`[WhaleTracker] Failed to fetch index.json (status ${indexRes.status})`);
@@ -111,13 +128,43 @@ export async function POST(req: NextRequest) {
 
             console.log(`[WhaleTracker] Extracted ${rows.length} rows for ${label}`);
 
-            return rows.map((r: any) => ({
+            let parsedRows = rows.map((r: any) => ({
                 issuer: r.nameOfIssuer?.[0] || "Unknown",
                 cusip: r.cusip?.[0],
                 value: parseFloat(r.value?.[0] || '0'),
                 shares: parseFloat(r.shrsOrPrnAmt?.[0]?.sshPrnamt?.[0] || '0'),
                 sshPrnamtType: r.shrsOrPrnAmt?.[0]?.sshPrnamtType?.[0] || 'SH'
             }));
+
+            // 1. Aggregation by CUSIP (Handle split entries)
+            const aggregatedMap = new Map<string, any>();
+            for (const row of parsedRows) {
+                const key = row.cusip || row.issuer;
+                if (!aggregatedMap.has(key)) {
+                    aggregatedMap.set(key, { ...row });
+                } else {
+                    const existing = aggregatedMap.get(key);
+                    existing.value += row.value;
+                    existing.shares += row.shares;
+                }
+            }
+            parsedRows = Array.from(aggregatedMap.values());
+
+            // 2. Normalization Heuristic (Detect if Value is Dollars instead of Thousands)
+            // Calculate median Price/Share to determine unit
+            const ratios = parsedRows.map((r: any) => r.shares > 0 ? r.value / r.shares : 0).filter((r: number) => r > 0);
+            ratios.sort((a: number, b: number) => a - b);
+            const medianRatio = ratios.length > 0 ? ratios[Math.floor(ratios.length / 2)] : 0;
+
+            console.log(`[WhaleTracker] ${label} Median Value/Share Ratio: ${medianRatio.toFixed(3)}`);
+
+            // Threshold: If median implied price > 4.0, it's likely Dollars. (Standard filings have implied price ~0.05 - 0.5 because Value is x1000)
+            if (medianRatio > 4.0) {
+                console.log(`[WhaleTracker] Detected DOLLAR values (instead of Thousands) for ${label}. Normalizing...`);
+                parsedRows.forEach((r: any) => r.value = r.value / 1000);
+            }
+
+            return parsedRows;
         };
 
         const [currHoldings, prevHoldings] = await Promise.all([
