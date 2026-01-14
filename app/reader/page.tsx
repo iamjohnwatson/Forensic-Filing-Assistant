@@ -13,6 +13,9 @@ function ReaderContent() {
     const [error, setError] = useState("");
     const [generatingPdf, setGeneratingPdf] = useState(false);
 
+
+
+
     useEffect(() => {
         if (!url) return;
 
@@ -51,14 +54,14 @@ function ReaderContent() {
             const html2pdf = (await import('html2pdf.js')).default;
 
             const opt = {
-                margin: [10, 10, 10, 10], // top, left, bottom, right
+                margin: [10, 10, 10, 10] as [number, number, number, number], // top, left, bottom, right
                 filename: 'sec-filing.pdf',
-                image: { type: 'jpeg', quality: 0.95 },
+                image: { type: 'jpeg' as const, quality: 0.95 },
                 html2canvas: { scale: 1, useCORS: true, logging: true },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
             };
 
-            await html2pdf().set(opt).from(element).save();
+            await html2pdf().set(opt).from(element as HTMLElement).save();
         } catch (err: any) {
             console.error("PDF generation failed", err);
             alert(`Failed to generate PDF: ${err.message || err}. Check console.`);
@@ -66,6 +69,8 @@ function ReaderContent() {
             setGeneratingPdf(false);
         }
     };
+
+
 
     if (loading) {
         return (
@@ -96,6 +101,8 @@ function ReaderContent() {
                 </Link>
 
                 <div className="flex items-center gap-3">
+
+
                     <button
                         onClick={handleDownloadPDF}
                         disabled={generatingPdf}
@@ -120,6 +127,10 @@ function ReaderContent() {
 
             {/* Content Area */}
             <div className="max-w-[900px] mx-auto py-12 px-8 md:px-12 print:max-w-none print:p-0 print:py-0">
+
+                {/* AI Summary Block */}
+
+
                 {/* 
                    We use a shadow DOM or iframe approach usually to isolate styles, 
                    but for simplicity here we assume SEC HTML is inline-style heavy.
