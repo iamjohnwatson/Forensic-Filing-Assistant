@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Forensic SEC Assistant",
+  title: "SEC filings assistant",
   description: "AI-powered SEC filing analysis",
 };
 
