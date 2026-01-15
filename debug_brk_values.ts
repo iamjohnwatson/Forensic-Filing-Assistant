@@ -13,6 +13,7 @@ async function debugBRK() {
     }
 
     const submission = await fetchSubmission(cik);
+    if (!submission) { return; }
     const recent = submission.filings.recent;
     const filingIndices: number[] = [];
     for (let i = 0; i < recent.form.length; i++) {
