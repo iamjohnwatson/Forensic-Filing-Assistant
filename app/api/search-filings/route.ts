@@ -45,6 +45,10 @@ export async function POST(req: NextRequest) {
                 else if (filingType === '10-Q') {
                     if (!formType.includes('10-Q') || formType.startsWith('NT')) continue;
                 }
+                else if (filingType === '424B') {
+                    // Matches 424B2, 424B5, etc.
+                    if (!formType.includes('424B')) continue;
+                }
                 else {
                     // Generic Check (Handles S-1, 20-F, DEF 14A, etc.)
                     if (!formType.includes(filingType)) continue;

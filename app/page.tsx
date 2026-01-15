@@ -240,6 +240,7 @@ export default function Home() {
                     <option value="PRE 14A">PRE 14A (Prelim Proxy)</option>
                     <option value="NT 10-K">NT 10-K (Late Notice)</option>
                     <option value="NT 10-Q">NT 10-Q (Late Notice)</option>
+                    <option value="424B">Prospectus (424B)</option>
                   </select>
                 </div>
               </div>
