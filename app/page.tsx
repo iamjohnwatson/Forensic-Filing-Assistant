@@ -9,6 +9,7 @@ import { InsiderTracker } from './components/InsiderTracker';
 import { WhaleTracker } from './components/WhaleTracker';
 import { FollowButton } from './components/FollowButton';
 import { InfoModal } from './components/InfoModal';
+import { IpoDashboard } from './components/IpoDashboard';
 
 interface FilingResult {
   accessionNumber: string;
@@ -22,7 +23,7 @@ interface FilingResult {
 
 export default function Home() {
   // I'm keeping track of which tab is active here.
-  const [activeTab, setActiveTab] = useState<'downloader' | 'whale' | 'insider'>('downloader');
+  const [activeTab, setActiveTab] = useState<'downloader' | 'whale' | 'insider' | 'ipo'>('downloader');
 
   // These are the state variables I need for the global filing downloader.
   const [ticker, setTicker] = useState("");
@@ -184,6 +185,12 @@ export default function Home() {
               >
                 Insider Analysis
               </button>
+              <button
+                onClick={() => setActiveTab('ipo')}
+                className={`px-4 py-1.5 rounded-md text-xs font-medium transition-all ${activeTab === 'ipo' ? (theme === 'dark' ? 'bg-zinc-800 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm') : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-300'}`}
+              >
+                IPO Watch <span className="ml-1 px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 text-[10px]">BETA</span>
+              </button>
             </div>
 
             <button
@@ -202,6 +209,8 @@ export default function Home() {
           <WhaleTracker theme={theme} />
         ) : activeTab === 'insider' ? (
           <InsiderTracker theme={theme} />
+        ) : activeTab === 'ipo' ? (
+          <IpoDashboard theme={theme} />
         ) : (
           <div className="max-w-4xl mx-auto space-y-12">
             {/* Search Section */}
