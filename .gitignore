@@ -40,3 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 temp_cik.txt
+# Python
+__pycache__/
+*.py[cod]
+*_temp.py
+.venv
+venv/

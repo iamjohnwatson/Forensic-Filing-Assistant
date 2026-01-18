@@ -10,6 +10,7 @@ import { WhaleTracker } from './components/WhaleTracker';
 import { FollowButton } from './components/FollowButton';
 import { InfoModal } from './components/InfoModal';
 import { IpoDashboard } from './components/IpoDashboard';
+import { IntelligenceDashboard } from './components/IntelligenceDashboard';
 
 interface FilingResult {
   accessionNumber: string;
@@ -23,7 +24,7 @@ interface FilingResult {
 
 export default function Home() {
   // I'm keeping track of which tab is active here.
-  const [activeTab, setActiveTab] = useState<'downloader' | 'whale' | 'insider' | 'ipo'>('downloader');
+  const [activeTab, setActiveTab] = useState<'downloader' | 'whale' | 'insider' | 'ipo' | 'intel'>('downloader');
 
   // These are the state variables I need for the global filing downloader.
   const [ticker, setTicker] = useState("");
@@ -191,6 +192,15 @@ export default function Home() {
               >
                 IPO Watch <span className="ml-1 px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 text-[10px]">BETA</span>
               </button>
+              <button
+                onClick={() => setActiveTab('intel')}
+                className={`px-4 py-1.5 rounded-md text-xs font-medium transition-all ${activeTab === 'intel' ? (theme === 'dark' ? 'bg-zinc-800 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm') : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-300'}`}
+              >
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3 text-purple-500" />
+                  Intelligence
+                </span>
+              </button>
             </div>
 
             <button
@@ -211,6 +221,8 @@ export default function Home() {
           <InsiderTracker theme={theme} />
         ) : activeTab === 'ipo' ? (
           <IpoDashboard theme={theme} />
+        ) : activeTab === 'intel' ? (
+          <IntelligenceDashboard ticker={ticker} theme={theme} />
         ) : (
           <div className="max-w-4xl mx-auto space-y-12">
             {/* Search Section */}

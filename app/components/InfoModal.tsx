@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Search, Activity, LineChart, Split, Bell, Info, TrendingUp } from 'lucide-react';
+import { X, Search, Activity, LineChart, Split, Bell, Info, TrendingUp, BrainCircuit } from 'lucide-react';
 import { useState } from 'react';
 
 export function InfoModal({ theme }: { theme: 'light' | 'dark' }) {
@@ -115,19 +115,39 @@ export function InfoModal({ theme }: { theme: 'light' | 'dark' }) {
                         </p>
                     </section>
 
-                    {/* 5. Notifications */}
+                    {/* 5. Corporate Intelligence */}
+                    <section className="space-y-3">
+                        <div className="flex items-center gap-2 text-cyan-500 font-semibold">
+                            <BrainCircuit className="w-5 h-5" />
+                            <h3>Corporate Intelligence</h3>
+                        </div>
+                        <p className={`text-sm leading-relaxed ${theme === 'dark' ? 'text-zinc-400' : 'text-gray-600'}`}>
+                            <strong>Deep AI Analysis:</strong> Generates "Business Intelligence" reports by comparing current and historical filings.
+                        </p>
+                        <ul className="list-disc pl-4 space-y-1 opacity-90 text-sm">
+                            <li className={theme === 'dark' ? 'text-zinc-400' : 'text-gray-600'}><strong>Supply Chain:</strong> Identify major customers, suppliers, and dependency risks.</li>
+                            <li className={theme === 'dark' ? 'text-zinc-400' : 'text-gray-600'}><strong>Strategic Shifts:</strong> Spot changes in business models and new risk factors.</li>
+                            <li className={theme === 'dark' ? 'text-zinc-400' : 'text-gray-600'}><strong>Momentum:</strong> Analyze QoQ and YoY growth trends vs operational flags.</li>
+                        </ul>
+                    </section>
+
+                    {/* 6. Notifications */}
                     <section className="space-y-3">
                         <div className="flex items-center gap-2 text-pink-500 font-semibold">
                             <Bell className="w-5 h-5" />
                             <h3>Smart Notifications</h3>
                         </div>
-                        <p className={`text-sm leading-relaxed ${theme === 'dark' ? 'text-zinc-400' : 'text-gray-600'}`}>
-                            Follow any ticker by clicking the Bell icon.
-                            Use the <strong>Gear icon</strong> to customize alerts for specific filing types (e.g., "Only 10-K and 8-K"). Alerts are delivered locally in your browser.
-                        </p>
+                        <div className={`space-y-2 text-sm leading-relaxed ${theme === 'dark' ? 'text-zinc-400' : 'text-gray-600'}`}>
+                            <p>
+                                Follow any ticker by clicking the Bell icon. Alerts are delivered locally in your browser when new filings are detected.
+                            </p>
+                            <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-500' : 'bg-yellow-50 border-yellow-200 text-yellow-700'}`}>
+                                <strong>Important:</strong> Because this runs entirely in your browser (Client-Side), <u>the tab must remain open</u> (or pinned) to receive alerts. If you close the tab, the checking stops.
+                            </div>
+                        </div>
                     </section>
 
-                    {/* 6. IPO Watch */}
+                    {/* 7. IPO Watch */}
                     <section className="space-y-3">
                         <div className="flex items-center gap-2 text-blue-600 font-semibold">
                             <TrendingUp className="w-5 h-5" />
@@ -135,7 +155,7 @@ export function InfoModal({ theme }: { theme: 'light' | 'dark' }) {
                         </div>
                         <p className={`text-sm leading-relaxed ${theme === 'dark' ? 'text-zinc-400' : 'text-gray-600'}`}>
                             Monitor incoming public offerings (S-1 and F-1 filings).
-                            The dashboard automatically parses the filing to display <strong>Shares Offered</strong>, <strong>Price Range</strong>, and key <strong>Financial Metrics</strong> (Revenue, Assets) from the registration statement.
+                            The dashboard automatically parses the filing to display <strong>Shares Offered</strong>, <strong>Price Range</strong>, and key <strong>Financial Metrics</strong> from the registration statement.
                         </p>
                     </section>
 
