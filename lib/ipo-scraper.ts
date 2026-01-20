@@ -69,10 +69,11 @@ export async function fetchRecentIpoFilings(startDate: string, endDate: string):
     const types = ['S-1', 'S-1/A', 'F-1', 'F-1/A'];
     let allFilings: IpoFiling[] = [];
 
-    // 1. Fetch Lists
-    for (const type of types) {
-        const entries = await fetchFilingsByType(type, 100);
+    // 1. Fetch Lists in Parallel
+    const typePromises = types.map(type => fetchFilingsByType(type, 100));
+    const results = await Promise.all(typePromises);
 
+    for (const entries of results) {
         for (const entry of entries) {
             // entry.updated is ISO date (e.g. 2026-01-15T15:00:00-05:00)
             const dateStr = entry.updated.split('T')[0];
@@ -117,7 +118,7 @@ export async function fetchRecentIpoFilings(startDate: string, endDate: string):
                 allFilings.push({
                     cik,
                     companyName,
-                    form: type,
+                    form: entry.category && entry.category.$ && entry.category.$.term ? entry.category.$.term : 'Unknown', // Use category if available, else derive
                     filingDate: dateStr,
                     accessionNumber: acc,
                     reportUrl: link // Temporary, will resolve later
@@ -125,6 +126,45 @@ export async function fetchRecentIpoFilings(startDate: string, endDate: string):
             }
         }
     }
+
+    // Fix Form Type (The atom feed might not pass it easily in the loop above because we flattened it)
+    // Actually, "types" index matches "results" index.
+    // Let's refine the loop strategy to keep track of type if needed, 
+    // BUT the 'category' field in atom entry often contains the form type (e.g. S-1).
+    // If not, we can blindly trust the list we fetched from.
+    // Re-doing the loop slightly to be safe:
+
+    allFilings = []; // Reset and redo with type awareness
+
+    results.forEach((entries, index) => {
+        const typeContext = types[index];
+        for (const entry of entries) {
+            const dateStr = entry.updated.split('T')[0];
+            if (dateStr >= startDate && dateStr <= endDate) {
+                const title = entry.title;
+                const companyMatch = title.match(/- (.+) \(/);
+                const companyName = companyMatch ? companyMatch[1].trim() : "Unknown";
+                const link = entry.link.$.href;
+                const urlParts = link.split('/');
+                let cik = urlParts[urlParts.length - 2];
+                let acc = urlParts[urlParts.length - 1].replace('-index.htm', '');
+
+                if (cik.length > 10 && /^\d+$/.test(cik)) {
+                    acc = urlParts[urlParts.length - 1].replace('-index.htm', '');
+                    cik = urlParts[urlParts.length - 3];
+                }
+
+                allFilings.push({
+                    cik,
+                    companyName,
+                    form: typeContext,
+                    filingDate: dateStr,
+                    accessionNumber: acc,
+                    reportUrl: link
+                });
+            }
+        }
+    });
 
     // Sort by date desc
     allFilings.sort((a, b) => b.filingDate.localeCompare(a.filingDate));
@@ -236,14 +276,22 @@ export async function parseIpoData(html: string): Promise<Partial<IpoFiling>> {
     // 1. Proposed Symbol
     // Priority: Ordinary Shares / Class A / Common Stock > Units (fallback)
     // Users want the actual stock symbol, not the unit symbol
-    const symbolBlacklist = new Set(["OUR", "THE", "AND", "COM", "STK", "INC", "CORP", "LTD", "PLC", "CLASS", "SHARES", "STOCK", "OVER", "WILL", "HAVE", "BEEN", "UNITS", "WARRA"]);
+    const symbolBlacklist = new Set(["OUR", "THE", "AND", "COM", "STK", "INC", "CORP", "LTD", "PLC", "CLASS", "SHARES", "STOCK", "OVER", "WILL", "HAVE", "BEEN", "UNITS", "WARRA", "THIS"]);
 
     let symbolFound = "";
 
+    // Attempt 0: "under the symbol 'LIFE'" (High confidence)
+    const underSymbolMatch = text.match(/under\s+the\s+symbol\s+["'\u201c\u201d]?([A-Z]{3,5})["'\u201c\u201d]?/i);
+    if (underSymbolMatch && !symbolBlacklist.has(underSymbolMatch[1].toUpperCase())) {
+        symbolFound = underSymbolMatch[1].toUpperCase();
+    }
+
     // Attempt 1: "Ordinary Shares: 'PAAC'" or "Class A ... : 'HIFI'"
-    const ordinaryMatch = text.match(/(?:Ordinary\s+Shares?|Class\s+[A-C]\s+(?:common\s+)?(?:stock|shares?))[:\s]*["'\u201c]?([A-Z]{3,5})["'\u201d]?/i);
-    if (ordinaryMatch && !symbolBlacklist.has(ordinaryMatch[1].toUpperCase())) {
-        symbolFound = ordinaryMatch[1].toUpperCase();
+    if (!symbolFound) {
+        const ordinaryMatch = text.match(/(?:Ordinary\s+Shares?|Class\s+[A-C]\s+(?:common\s+)?(?:stock|shares?))[:\s]*["'\u201c]?([A-Z]{3,5})["'\u201d]?/i);
+        if (ordinaryMatch && !symbolBlacklist.has(ordinaryMatch[1].toUpperCase())) {
+            symbolFound = ordinaryMatch[1].toUpperCase();
+        }
     }
 
     // Attempt 2: "Proposed ticker symbol" or "Proposed trading symbol: 'HIFI'"
@@ -358,12 +406,9 @@ export async function parseIpoData(html: string): Promise<Partial<IpoFiling>> {
         }
     }
 
-    // Capture Use of Proceeds (Snippet)
+    // Capture Use of Proceeds (Snippet) - REMOVED per user request
     // Strategy: Find ALL "Use of Proceeds" headers that look like headers.
-    // 1. Skip TOCs.
-    // 2. Skip embedded phrases ("the use of proceeds").
-    // 3. If we have > 1 valid candidate, pick the second (skip Summary).
-
+    /*
     const validProceedsCandidates: string[] = [];
     const potentialHeaders = [...text.matchAll(/Use of proceeds/gi)];
 
@@ -414,6 +459,7 @@ export async function parseIpoData(html: string): Promise<Partial<IpoFiling>> {
             data.pricing!.useOfProceeds = snippet.trim() + "...";
         }
     }
+    */
 
     // 2. Shares Offered
     // Priority 1: Look for "THE OFFERING" section table (most accurate for IPOs)
@@ -486,6 +532,10 @@ export async function parseIpoData(html: string): Promise<Partial<IpoFiling>> {
     }
 
     // 4. Shares Outstanding (Post-Offering)
+    // Priority 0: Explicit "Total ... to be outstanding" line (Common in dual-class structures)
+    // Matches: "Total Class A common stock and Class B common stock to be outstanding after this offering ... 62,942,998 shares"
+    const totalOutstandingMatch = text.match(/Total(?:[\s\w]+)?\s+outstanding\s+after\s+(?:this|the)\s+offering[^\d]*(\d{1,3}(?:,\d{3})+)/i);
+
     // Priority 1: "THE OFFERING" section - "Shares outstanding immediately after this offering: 23,750,000"
     const outstandingSectionMatch = text.match(/(?:THE OFFERING|Summary of the Offering)[\s\S]{0,3000}?(?:Shares of[\w\s]+(?:common stock|ordinary shares)\s+outstanding[^\d]*)(\d{1,3}(?:,\d{3})+)/i);
 
@@ -494,7 +544,11 @@ export async function parseIpoData(html: string): Promise<Partial<IpoFiling>> {
 
     let sharesOutstanding = 0;
 
-    if (outstandingSectionMatch) {
+    if (totalOutstandingMatch) {
+        const valStr = totalOutstandingMatch[1];
+        data.pricing!.sharesOutstanding = valStr;
+        sharesOutstanding = parseFloat(valStr.replace(/,/g, ''));
+    } else if (outstandingSectionMatch) {
         const valStr = outstandingSectionMatch[1];
         data.pricing!.sharesOutstanding = valStr;
         sharesOutstanding = parseFloat(valStr.replace(/,/g, ''));
@@ -567,48 +621,123 @@ export async function parseIpoData(html: string): Promise<Partial<IpoFiling>> {
     }
 
     // 4. Financials (Revenue, Net Income, Total Assets)
-    // We look for tables containing specific keywords.
+    // We look for tables containing specific keywords and score them.
 
-    // Helper to extract value from a table row
-    const extractValue = (keyword: RegExp, $table: any): string | undefined => {
+    const extractValue = ($table: any, keywords: RegExp[]): string | undefined => {
+        // Detect scaling factor from previous text or header
+        // Look at the table's preceding text or the first row
+        let multiplier = 1;
+        const fullTableText = $table.text();
+        const headerText = $table.parent().prev().text() + " " + $table.find('tr').first().text();
+
+        if (/in\s+thousands/i.test(headerText) || /\(in\s+000s\)/i.test(headerText)) {
+            multiplier = 1000;
+        } else if (/in\s+millions/i.test(headerText)) {
+            multiplier = 1000000;
+        }
+
         let val: string | undefined;
+
+        // Iterate Rows
         $table.find('tr').each((_: any, tr: any) => {
+            if (val) return; // Stop if found
+
             const $tr = $(tr);
             const rowText = $tr.text().replace(/\s+/g, ' ').trim();
-            if (keyword.test(rowText)) {
-                // Find the first numeric cell
+
+            // match any of the keywords
+            if (keywords.some(k => k.test(rowText))) {
+                // Find numeric cells
+                const cells: string[] = [];
                 $tr.find('td').each((_: any, td: any) => {
-                    const cellText = $(td).text().trim();
-                    // Match ($123,456) or 123,456 or $123
-                    const numMatch = cellText.match(/^\(?\$?[\d,]+(?:\.\d+)?\)?$/);
-                    // Use the last valid number in the row (usually current period) or first?
-                    // Often the first numeric column is the most recent.
-                    if (numMatch && !val) {
-                        val = cellText;
+                    const txt = $(td).text().trim();
+                    // Strict number match: 
+                    // - Optional parens/negative sign
+                    // - Dollar sign optional
+                    // - Digits with commas and decimals
+                    // - Footnotes ignored (requires space or end)
+                    // Regex: ^\(?\$?[\d,]+(\.\d+)?\)?$  <-- too strict?
+                    // Let's accept things that *look* like financials.
+                    if (/^[\(\$\-\d]/.test(txt) && /[\d]/.test(txt)) {
+                        cells.push(txt);
                     }
                 });
+
+                // Strategy: Take the last valid number (usually current period)? 
+                // Or the first? Usually the most recent period is First or Last. 
+                // If there are 2 numbers, usually Current | Previous. We want Current.
+                // Often "Year Ended Dec 31, 2025" is the first col.
+                if (cells.length > 0) {
+                    // Clean and Parse
+                    const raw = cells[0]; // Let's try the first data column.
+
+                    // Cleaning: Remove $, commas, parens means negative
+                    let clean = raw.replace(/[$,]/g, '');
+                    let isNegative = false;
+                    if (clean.includes('(') || clean.includes(')')) {
+                        isNegative = true;
+                        clean = clean.replace(/[()]/g, '');
+                    }
+
+                    const num = parseFloat(clean);
+                    if (!isNaN(num)) {
+                        const finalVal = num * multiplier;
+
+                        // Format back to String (Currency)
+                        // e.g. $10,400,000
+                        // Use Intl.NumberFormat for nice formatting? 
+                        // Just basic for now:
+                        val = (isNegative ? '-' : '') + '$' + finalVal.toLocaleString('en-US');
+                    }
+                }
             }
         });
         return val;
     };
 
-    // Find Income Statement Table
-    // Look for header "Statement of Operations" or "Statement of Comprehensive Income"
-    // Then find the next table.
-    // Loop through all tables is easier: find table with "Revenue" or "Net Income"
+    // Score tables to find the Income Statement
+    let bestIncomeTable: any = null;
+    let bestScore = 0;
+
     $('table').each((i, table) => {
         const $table = $(table);
-        const tableText = $table.text();
+        const txt = $table.text().toLowerCase();
+        let score = 0;
 
-        // Income Statement Heuristic
-        if (!data.financials?.revenue && (tableText.includes('Revenue') || tableText.includes('Sales')) && (tableText.includes('Net loss') || tableText.includes('Net income'))) {
-            data.financials!.revenue = extractValue(/Total revenues?|Net sales?|Total net sales?/i, $table);
-            data.financials!.netIncome = extractValue(/Net (loss|income)/i, $table);
+        if (txt.includes('revenue') || txt.includes('net sales')) score += 2;
+        if (txt.includes('net income') || txt.includes('net loss')) score += 3;
+        if (txt.includes('operating expenses')) score += 1;
+        if (txt.includes('gross profit')) score += 1;
+        if (txt.includes('earnings per share') || txt.includes('loss per share')) score += 1;
+
+        // Penalize small tables (likely footnotes)
+        if ($table.find('tr').length < 3) score -= 5;
+
+        // Penalize Balance Sheets (if we are looking for IS)
+        // Balance sheets often have "Total Assets" which is unique to them
+        if (txt.includes('total assets') && txt.includes('liabilities')) score -= 5;
+
+        if (score > bestScore) {
+            bestScore = score;
+            bestIncomeTable = $table;
         }
+    });
 
-        // Balance Sheet Heuristic
-        if (!data.financials?.totalAssets && tableText.includes('Total assets') && tableText.includes('Total liabilities')) {
-            data.financials!.totalAssets = extractValue(/Total assets/i, $table);
+    if (bestIncomeTable && bestScore >= 3) {
+        data.financials!.revenue = extractValue(bestIncomeTable, [/Total revenues?/i, /Net sales?/i, /Total net sales?/i]);
+        data.financials!.netIncome = extractValue(bestIncomeTable, [/Net (loss|income)/i, /Net (loss|income) for the period/i]);
+    }
+
+    // Still need Balance Sheet for Total Assets
+    // Look specifically for Balance Sheet signatures
+    $('table').each((i, table) => {
+        const $table = $(table);
+        const txt = $table.text().toLowerCase();
+
+        if (txt.includes('total assets') && (txt.includes('total liabilities') || txt.includes('stockholders'))) {
+            // Likely Balance Sheet
+            const assets = extractValue($table, [/Total assets/i]);
+            if (assets) data.financials!.totalAssets = assets;
         }
     });
 

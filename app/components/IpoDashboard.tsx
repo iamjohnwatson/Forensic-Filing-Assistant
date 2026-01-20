@@ -247,18 +247,7 @@ export function IpoDashboard({ theme }: IpoDashboardProps) {
                                 </div>
                             </div>
 
-                            {/* Use of Proceeds */}
-                            {selectedFiling.pricing?.useOfProceeds && (
-                                <div className={`mb-6 p-4 rounded-xl border ${cardBg}`}>
-                                    <h3 className={`text-xs font-bold uppercase tracking-wide mb-2 flex items-center gap-2 ${textMuted}`}>
-                                        <Target className="h-4 w-4" />
-                                        Use of Proceeds
-                                    </h3>
-                                    <p className={`text-sm ${textMain} leading-relaxed`}>
-                                        {selectedFiling.pricing.useOfProceeds}
-                                    </p>
-                                </div>
-                            )}
+
 
                             {/* Financials Section */}
                             <div>
