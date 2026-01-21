@@ -46,3 +46,7 @@ __pycache__/
 *_temp.py
 .venv
 venv/
+
+/lib/generated/prisma
+
+whale_data.db

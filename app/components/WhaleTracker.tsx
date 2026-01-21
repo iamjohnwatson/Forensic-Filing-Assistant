@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Download, X, Search, Loader2, TrendingUp, TrendingDown, CirclePlus, Plus, Users, GitMerge } from 'lucide-react';
+import { Download, X, Search, Loader2, TrendingUp, TrendingDown, CirclePlus, Plus, Users, GitMerge, Database } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, ScatterChart, Scatter, ReferenceLine } from 'recharts';
 import { getSector } from '@/lib/sectors';
 import { TickerSearch } from './TickerSearch';
@@ -78,7 +78,7 @@ const CustomScatterTooltip = ({ active, payload, theme }: any) => {
 };
 
 export function WhaleTracker({ theme }: { theme: 'light' | 'dark' }) {
-    const [viewMode, setViewMode] = useState<'single' | 'compare'>('single');
+    const [viewMode, setViewMode] = useState<'single' | 'compare' | 'reverse'>('single');
 
     // Single Mode State
     const [ticker, setTicker] = useState("");
@@ -96,6 +96,10 @@ export function WhaleTracker({ theme }: { theme: 'light' | 'dark' }) {
     const [analyzingHistory, setAnalyzingHistory] = useState(false);
     const [historyData, setHistoryData] = useState<any[] | null>(null);
     const [selectedHolding, setSelectedHolding] = useState<string | null>(null);
+
+    // Reverse Lookup State
+    const [reverseTicker, setReverseTicker] = useState("");
+    const [reverseData, setReverseData] = useState<any | null>(null);
 
     // --- Handlers ---
 
@@ -138,6 +142,27 @@ export function WhaleTracker({ theme }: { theme: 'light' | 'dark' }) {
             setClusterData(result);
         } catch (e: any) {
             setError(e.message || "Comparison failed");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleReverseLookup = async () => {
+        if (!reverseTicker) return;
+        setLoading(true);
+        setError("");
+        setReverseData(null);
+        try {
+            const res = await fetch('/api/whale-reverse-lookup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ticker: reverseTicker })
+            });
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.error || "Lookup failed");
+            setReverseData(result);
+        } catch (e: any) {
+            setError(e.message || "An error occurred");
         } finally {
             setLoading(false);
         }
@@ -264,6 +289,12 @@ export function WhaleTracker({ theme }: { theme: 'light' | 'dark' }) {
                         className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${viewMode === 'compare' ? (theme === 'dark' ? 'bg-zinc-800 text-white' : 'bg-gray-100 text-gray-900') : 'text-gray-500 hover:text-gray-700'}`}
                     >
                         <Users className="w-3 h-3" /> Head-to-Head
+                    </button>
+                    <button
+                        onClick={() => setViewMode('reverse')}
+                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${viewMode === 'reverse' ? (theme === 'dark' ? 'bg-zinc-800 text-white' : 'bg-gray-100 text-gray-900') : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <Database className="w-3 h-3" /> Stock Search
                     </button>
                 </div>
             </div>
@@ -453,6 +484,71 @@ export function WhaleTracker({ theme }: { theme: 'light' | 'dark' }) {
                     )}
                 </>
             )}
-        </div>
+
+            {
+                viewMode === 'reverse' && (
+                    <>
+                        <div className={`p-8 rounded-2xl border transition-all ${theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800 shadow-xl' : 'bg-white border-gray-200 shadow-sm'}`}>
+                            <div className="max-w-2xl mx-auto text-center mb-8">
+                                <h2 className={`text-2xl font-bold tracking-tight mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Reverse Whale Lookup</h2>
+                                <p className={`text-sm ${theme === 'dark' ? 'text-zinc-500' : 'text-gray-500'}`}>Find which top funds hold a specific stock.</p>
+                            </div>
+                            <div className="max-w-xl mx-auto flex gap-3">
+                                <div className="relative flex-1">
+                                    <TickerSearch value={reverseTicker} onChange={setReverseTicker} onSelect={handleReverseLookup} theme={theme} placeholder="Enter Stock Ticker (e.g. AAPL)" />
+                                </div>
+                                <button onClick={handleReverseLookup} disabled={loading} className={`px-6 font-medium rounded-lg text-sm ${theme === 'dark' ? 'bg-white text-black' : 'bg-gray-900 text-white'}`}>
+                                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search Fund DB"}
+                                </button>
+                            </div>
+                            {error && <div className="mt-4 text-center text-sm font-medium text-red-500 bg-red-500/5 p-2 rounded">{error}</div>}
+                        </div>
+
+                        {reverseData && (
+                            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+                                <div className="flex items-center justify-between px-2">
+                                    <div className="flex items-center gap-2">
+                                        <Database className={`h-5 w-5 ${theme === 'dark' ? 'text-zinc-400' : 'text-gray-400'}`} />
+                                        <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Funds Holding {reverseData.companyName}</span>
+                                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">{reverseData.matchCount} Found</span>
+                                    </div>
+                                </div>
+
+                                <div className={`rounded-xl border overflow-hidden ${theme === 'dark' ? 'border-zinc-800 bg-zinc-900/30' : 'border-gray-200 bg-white'}`}>
+                                    <table className="w-full text-sm text-left">
+                                        <thead className={`text-xs uppercase font-medium ${theme === 'dark' ? 'bg-zinc-900 text-zinc-500' : 'bg-gray-50 text-gray-500'}`}>
+                                            <tr>
+                                                <th className="px-6 py-3">Fund Name</th>
+                                                <th className="px-6 py-3 text-right">Shares Held</th>
+                                                <th className="px-6 py-3 text-right">Position Value</th>
+                                                <th className="px-6 py-3 text-right">Filing Date</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className={`divide-y ${theme === 'dark' ? 'divide-zinc-800 text-zinc-300' : 'divide-gray-100 text-gray-700'}`}>
+                                            {reverseData.funds.map((f: any, i: number) => (
+                                                <tr key={i} className="hover:opacity-70 transition-opacity">
+                                                    <td className="px-6 py-3 font-medium">
+                                                        <div>{f.fundName}</div>
+                                                        <div className="text-[10px] opacity-50">CIK: {f.cik}</div>
+                                                    </td>
+                                                    <td className="px-6 py-3 text-right font-mono text-xs">{formatNumber(f.shares)}</td>
+                                                    <td className="px-6 py-3 text-right font-mono text-xs font-bold text-emerald-500">${formatNumber(f.value)} k</td>
+                                                    <td className="px-6 py-3 text-right text-xs opacity-60">{f.filing_date}</td>
+                                                </tr>
+                                            ))}
+                                            {reverseData.funds.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={4} className="px-6 py-8 text-center opacity-50">No funds found holding this stock in the current database.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </>
+                )}
+
+        </div >
     );
 }

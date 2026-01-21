@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  // NOTE: Pointing to a file in the project root for simplicity
+  url      = env("DATABASE_URL")
+}
+
+model Fund {
+  id        String   @id @default(uuid())
+  cik       String   @unique
+  name      String
+  ticker    String?
+  filings   Filing[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Filing {
+  id              String   @id @default(uuid())
+  fundId          String
+  fund            Fund     @relation(fields: [fundId], references: [id])
+  accessionNumber String   @unique
+  filingDate      DateTime
+  reportDate      DateTime? 
+  quarter         String   // e.g. "2024-Q4"
+  holdings        Holding[]
+  createdAt       DateTime @default(now())
+}
+
+model Holding {
+  id        String  @id @default(uuid())
+  filingId  String
+  filing    Filing  @relation(fields: [filingId], references: [id])
+  issuer    String
+  cusip     String?
+  ticker    String? 
+  value     Float   
+  shares    Float
+  sshPrnamtType String? 
+  
+  @@index([issuer])
+  @@index([ticker])
+  @@index([cusip])
+}
